@@ -1,114 +1,93 @@
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const { Telegraf } = require('telegraf');
-
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// 1. Basic web server for Render
+// 1. Basic server for Render
 app.get('/', (req, res) => {
-  res.send('🤖 WhatsApp + Telegram Bot is Running!');
+  res.send('🤖 WhatsApp + Telegram Bot is Running!<br>Check logs for QR code.');
+});
+
+// 2. Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
+  startBots();
 });
 
-console.log('🚀 Starting WhatsApp + Telegram Bot...');
-
-// 2. Telegram Bot Setup
-const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-let adminChatId = null;
-let whatsappQrCode = null;
-
-if (!telegramToken) {
-  console.log('⚠️ Telegram token not found. Using console only.');
-} else {
+// 3. Start bots function
+async function startBots() {
+  console.log('🚀 Starting bots...');
+  
   try {
-    const telegramBot = new Telegraf(telegramToken);
+    // Try to load WhatsApp bot
+    const { Client, LocalAuth } = require('whatsapp-web.js');
+    const qrcode = require('qrcode-terminal');
     
-    telegramBot.command('start', (ctx) => {
-      adminChatId = ctx.chat.id;
-      ctx.reply('🤖 Welcome to Clawdbot!\n\nCommands:\n/qr - Get WhatsApp QR code\n/status - Check bot status');
-    });
+    console.log('🔧 Setting up WhatsApp...');
     
-    telegramBot.command('qr', (ctx) => {
-      if (whatsappQrCode) {
-        ctx.reply('📱 Scan this QR with WhatsApp → Linked Devices:');
-        ctx.reply(`\`${whatsappQrCode}\``, { parse_mode: 'Markdown' });
-      } else {
-        ctx.reply('QR code not ready yet. Wait a moment...');
+    const whatsappClient = new Client({
+      authStrategy: new LocalAuth({
+        clientId: "render-bot"
+      }),
+      puppeteer: {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--single-process'
+        ]
       }
     });
     
-    telegramBot.command('status', (ctx) => {
-      ctx.reply('✅ Bot is online!\nSend /qr to get WhatsApp QR code');
+    whatsappClient.on('qr', (qr) => {
+      console.log('\n📱 ======== WHATSAPP QR CODE ========');
+      qrcode.generate(qr, { small: true });
+      console.log(`QR String: ${qr}`);
+      console.log('====================================\n');
+      console.log('📱 Scan this QR with WhatsApp → Linked Devices');
     });
     
-    telegramBot.launch();
-    console.log('✅ Telegram bot started');
-  } catch (error) {
-    console.log('❌ Telegram bot error:', error.message);
-  }
-}
-
-// 3. WhatsApp Bot Setup
-console.log('🔧 Setting up WhatsApp client...');
-
-const whatsappClient = new Client({
-  authStrategy: new LocalAuth({
-    clientId: "render-bot"
-  }),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--single-process'
-    ]
-  }
-});
-
-// QR Code Handler
-whatsappClient.on('qr', (qr) => {
-  console.log('\n📱 ======== WHATSAPP QR CODE ========');
-  qrcode.generate(qr, { small: true });
-  console.log(`QR String: ${qr}`);
-  console.log('====================================\n');
-  
-  whatsappQrCode = qr;
-  
-  // Send to Telegram if available
-  if (adminChatId) {
-    const telegramBot = new Telegraf(telegramToken);
-    telegramBot.telegram.sendMessage(adminChatId, '📱 *WhatsApp QR Code Ready!*\n\nSend /qr to see it', {
-      parse_mode: 'Markdown'
+    whatsappClient.on('ready', () => {
+      console.log('✅ WhatsApp connected!');
     });
+    
+    whatsappClient.on('message', (msg) => {
+      console.log(`📱 Message from ${msg.from}: ${msg.body}`);
+    });
+    
+    whatsappClient.initialize();
+    
+  } catch (error) {
+    console.log('❌ WhatsApp setup failed:', error.message);
   }
-});
-
-whatsappClient.on('ready', () => {
-  console.log('✅ WhatsApp client is ready!');
-  if (adminChatId) {
-    const telegramBot = new Telegraf(telegramToken);
-    telegramBot.telegram.sendMessage(adminChatId, '✅ WhatsApp connected successfully!');
+  
+  // Telegram bot
+  try {
+    const { Telegraf } = require('telegraf');
+    const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+    
+    if (telegramToken) {
+      console.log('🔧 Setting up Telegram...');
+      const bot = new Telegraf(telegramToken);
+      
+      bot.command('start', (ctx) => {
+        ctx.reply('🤖 Bot is running!\nCheck Render logs for WhatsApp QR code.');
+      });
+      
+      bot.command('status', (ctx) => {
+        ctx.reply('✅ Bot is online and running on Render');
+      });
+      
+      bot.launch();
+      console.log('✅ Telegram bot started');
+    }
+  } catch (error) {
+    console.log('❌ Telegram setup failed:', error.message);
   }
-});
-
-whatsappClient.on('message', (message) => {
-  console.log(`📱 WhatsApp message from ${message.from}: ${message.body}`);
-});
-
-whatsappClient.on('disconnected', (reason) => {
-  console.log('❌ WhatsApp disconnected:', reason);
-});
-
-// Start WhatsApp
-whatsappClient.initialize();
-
-console.log('🎉 Bot setup complete!');
-console.log('1. Open Telegram and send /start to your bot');
-console.log('2. Then send /qr to get WhatsApp QR code');
-console.log('3. Scan QR with WhatsApp → Linked Devices');
+  
+  console.log('🎉 All bots initialized!');
+}
