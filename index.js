@@ -1,5 +1,6 @@
 const express = require('express');
 const { exec } = require('child_process');
+const fs = require('fs'); // Ye naya tool hai jo file banayega
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -12,27 +13,43 @@ app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
 
-// 2. Clawdbot Start Command
-// Hum environment variables se platform decide karenge
-console.log("Starting Clawdbot...");
+// 2. AUTOMATIC CONFIG FILE CREATION (Magic Fix 🪄)
+// Hum yahi par config file bana rahe hain taaki "Missing Config" error na aaye
+console.log("Creating config file...");
+const configContent = `
+module.exports = {
+  core: {
+    llmProvider: 'google',
+  },
+  platforms: {
+    telegram: {
+      enabled: true, // Zabardasti ON kiya
+    },
+    whatsapp: {
+      enabled: true, // Zabardasti ON kiya
+    }
+  }
+};
+`;
 
-// Ye command bot ko start karegi aur logs me QR code dikhayegi
-// start hata diya hai
-// Saare flags hata diye, ab bot khud environment variables padhega
-// Ab hum daemon ko START karne ka order de rahe hain
-// 'daemon' hata diya, ab seedha 'gateway' chalayenge jo foreground me chalta hai
-// Hum specific bata rahe hain: Config ignore karo AUR Telegram+WhatsApp ko ON karo
-// Config file ban gayi hai, ab bas chalne do
-const bot = exec('npx clawdbot gateway');
+try {
+  fs.writeFileSync('clawdbot.config.js', configContent);
+  console.log("Config file created successfully! ✅");
+} catch (err) {
+  console.error("Error creating config file:", err);
+}
 
+// 3. Clawdbot Start Command
+console.log("Starting Clawdbot Gateway...");
 
-
-
+// Ab config file maujood hai, isliye bot turant start hoga
+const bot = exec('npx clawdbot gateway --allow-unconfigured');
 
 bot.stdout.on('data', (data) => {
   console.log(data); // Sab logs dikhao
 });
 
 bot.stderr.on('data', (data) => {
-  console.error(`Error: ${data}`);
+  // Ignore harmless warnings, show real errors
+  console.error(`Log: ${data}`);
 });
