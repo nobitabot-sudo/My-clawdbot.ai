@@ -21,8 +21,8 @@ console.log("Starting Clawdbot...");
 // Saare flags hata diye, ab bot khud environment variables padhega
 // Ab hum daemon ko START karne ka order de rahe hain
 // 'daemon' hata diya, ab seedha 'gateway' chalayenge jo foreground me chalta hai
-const bot = exec('npx clawdbot gateway');
-
+// Hum '--allow-unconfigured' flag laga rahe hain taaki wo 'Missing Config' ka error na de
+const bot = exec('npx clawdbot gateway --allow-unconfigured');
 
 
 
