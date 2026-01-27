@@ -1,14 +1,21 @@
 {
-  "name": "whatsapp-bot-render",
+  "name": "whatsapp-telegram-bot",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "node install-chromium.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "whatsapp-web.js": "^1.23.0",
     "qrcode-terminal": "^0.12.0",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "puppeteer": "^21.11.0",
+    "puppeteer-core": "^21.11.0",
+    "chrome-aws-lambda": "^10.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
