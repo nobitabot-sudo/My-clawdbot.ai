@@ -17,7 +17,9 @@ app.listen(port, () => {
 console.log("Starting Clawdbot...");
 
 // Ye command bot ko start karegi aur logs me QR code dikhayegi
-const bot = exec('npx clawdbot start --qrcode-terminal');
+// start hata diya hai
+const bot = exec('npx clawdbot --qrcode-terminal');
+
 
 bot.stdout.on('data', (data) => {
   console.log(data); // Sab logs dikhao
