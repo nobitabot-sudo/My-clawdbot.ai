@@ -22,7 +22,9 @@ console.log("Starting Clawdbot...");
 // Ab hum daemon ko START karne ka order de rahe hain
 // 'daemon' hata diya, ab seedha 'gateway' chalayenge jo foreground me chalta hai
 // Hum specific bata rahe hain: Config ignore karo AUR Telegram+WhatsApp ko ON karo
-const bot = exec('npx clawdbot gateway --allow-unconfigured --platforms whatsapp,telegram');
+// Config file ban gayi hai, ab bas chalne do
+const bot = exec('npx clawdbot gateway');
+
 
 
 
