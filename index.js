@@ -1,55 +1,36 @@
 const express = require('express');
-const { exec } = require('child_process');
-const fs = require('fs'); // Ye naya tool hai jo file banayega
+const { exec, execSync } = require('child_process'); // execSync naya hai
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 10000;
 
-// 1. Cron-Job ke liye Server (Taaki bot soye nahi)
-app.get('/', (req, res) => {
-  res.send('Hybrid Bot (Tele+WA) is Running!');
-});
+// 1. Cron-Job Server
+app.get('/', (req, res) => res.send('Bot is Running!'));
+app.listen(port, () => console.log(`Server running on port ${port}`));
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
-// 2. AUTOMATIC CONFIG FILE CREATION (Magic Fix 🪄)
-// Hum yahi par config file bana rahe hain taaki "Missing Config" error na aaye
-console.log("Creating config file...");
-const configContent = `
-module.exports = {
-  core: {
-    llmProvider: 'google',
-  },
-  platforms: {
-    telegram: {
-      enabled: true, // Zabardasti ON kiya
-    },
-    whatsapp: {
-      enabled: true, // Zabardasti ON kiya
-    }
-  }
-};
-`;
+console.log("--------------------------------------");
+console.log("🤖 SYSTEM REPAIR STARTED");
 
 try {
-  fs.writeFileSync('clawdbot.config.js', configContent);
-  console.log("Config file created successfully! ✅");
+  // STEP 1: Zabardasti Settings ko 'TRUE' set karo
+  console.log("👉 Forcing Telegram ON...");
+  execSync('npx clawdbot config set platforms.telegram.enabled true', { stdio: 'inherit' });
+
+  console.log("👉 Forcing WhatsApp ON...");
+  execSync('npx clawdbot config set platforms.whatsapp.enabled true', { stdio: 'inherit' });
+
+  // STEP 2: Doctor ko bolo khud hi sab fix kare (Log recommendation)
+  console.log("👉 Running Doctor Fix...");
+  execSync('npx clawdbot doctor --fix', { stdio: 'inherit' });
+
 } catch (err) {
-  console.error("Error creating config file:", err);
+  console.log("⚠️ Choti moti warning aayi, par hum aage badhenge...");
 }
 
-// 3. Clawdbot Start Command
-console.log("Starting Clawdbot Gateway...");
+console.log("--------------------------------------");
+console.log("🚀 STARTING CLAWDBOT GATEWAY...");
 
-// Ab config file maujood hai, isliye bot turant start hoga
-const bot = exec('npx clawdbot gateway --allow-unconfigured');
+// STEP 3: Ab Start karo
+const bot = exec('npx clawdbot gateway');
 
-bot.stdout.on('data', (data) => {
-  console.log(data); // Sab logs dikhao
-});
-
-bot.stderr.on('data', (data) => {
-  // Ignore harmless warnings, show real errors
-  console.error(`Log: ${data}`);
-});
+bot.stdout.on('data', (data) => console.log(data));
+bot.stderr.on('data', (data) => console.error(`Log: ${data}`));
