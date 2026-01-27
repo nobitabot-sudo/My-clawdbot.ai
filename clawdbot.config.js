@@ -1,16 +1,13 @@
 module.exports = {
   core: {
-    // Dimaag ko Google par set karo
     llmProvider: 'google',
   },
   platforms: {
     telegram: {
-      // Zabardasti ON karo
       enabled: true,
-      token: process.env.TELEGRAM_BOT_TOKEN,
+      // Token hum already Environment Variables se le rahe hain
     },
     whatsapp: {
-      // Zabardasti ON karo
       enabled: true,
     }
   }
