@@ -18,7 +18,9 @@ console.log("Starting Clawdbot...");
 
 // Ye command bot ko start karegi aur logs me QR code dikhayegi
 // start hata diya hai
-const bot = exec('npx clawdbot --qrcode-terminal');
+// Saare flags hata diye, ab bot khud environment variables padhega
+const bot = exec('npx clawdbot');
+
 
 
 bot.stdout.on('data', (data) => {
