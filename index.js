@@ -1,251 +1,324 @@
 const express = require('express');
+const { Telegraf } = require('telegraf');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Store QR code
-let whatsappQrCode = null;
-let telegramBot = null;
-let whatsappClient = null;
+// Store data
+let botInfo = null;
+let userCount = 0;
 
-// Basic server
+// Basic HTML page
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
-      <title>WhatsApp + Telegram Bot</title>
+      <title>Telegram Bot - Live</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
-        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-        .container { max-width: 600px; margin: 0 auto; }
-        .status { padding: 15px; border-radius: 10px; margin: 20px 0; }
-        .online { background: #d4edda; color: #155724; }
-        .offline { background: #f8d7da; color: #721c24; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .container {
+          background: white;
+          border-radius: 20px;
+          padding: 40px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          max-width: 500px;
+          width: 100%;
+          text-align: center;
+        }
+        h1 {
+          color: #333;
+          margin-bottom: 20px;
+          font-size: 28px;
+        }
+        .status {
+          background: #4CAF50;
+          color: white;
+          padding: 10px 20px;
+          border-radius: 50px;
+          display: inline-block;
+          margin: 20px 0;
+          font-weight: bold;
+        }
+        .steps {
+          text-align: left;
+          background: #f8f9fa;
+          padding: 20px;
+          border-radius: 10px;
+          margin: 20px 0;
+        }
+        .steps li {
+          margin: 10px 0;
+          padding-left: 10px;
+        }
+        .telegram-btn {
+          display: inline-block;
+          background: #0088cc;
+          color: white;
+          padding: 12px 30px;
+          border-radius: 50px;
+          text-decoration: none;
+          font-weight: bold;
+          margin-top: 20px;
+          transition: transform 0.3s;
+        }
+        .telegram-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 10px 20px rgba(0,136,204,0.3);
+        }
+        .info {
+          margin-top: 20px;
+          color: #666;
+          font-size: 14px;
+        }
       </style>
     </head>
     <body>
       <div class="container">
-        <h1>🤖 WhatsApp + Telegram Bot</h1>
-        <div class="status ${whatsappQrCode ? 'online' : 'offline'}">
-          Status: ${whatsappQrCode ? 'QR Code Ready!' : 'Starting...'}
+        <h1>🤖 Telegram Bot</h1>
+        <div class="status">✅ ONLINE & RUNNING</div>
+        
+        <div class="steps">
+          <h3>How to use:</h3>
+          <ol>
+            <li>Open Telegram on your phone</li>
+            <li>Search for: <strong>${botInfo ? '@' + botInfo.username : 'YourBotName'}</strong></li>
+            <li>Send <code>/start</code> to begin</li>
+            <li>Send <code>/help</code> for commands</li>
+          </ol>
         </div>
-        <p><strong>Steps to use:</strong></p>
-        <ol style="text-align: left; display: inline-block;">
-          <li>Open Telegram and message your bot with /start</li>
-          <li>Send /qr to get WhatsApp QR code</li>
-          <li>Open WhatsApp → Settings → Linked Devices</li>
-          <li>Scan the QR code</li>
-        </ol>
+        
+        ${botInfo ? `
+          <a href="https://t.me/${botInfo.username}" class="telegram-btn" target="_blank">
+            Open Telegram Bot
+          </a>
+        ` : ''}
+        
+        <div class="info">
+          <p>Users connected: ${userCount}</p>
+          <p>Server: Render Free Tier</p>
+          <p>Status: Active ✅</p>
+        </div>
       </div>
     </body>
     </html>
   `);
 });
 
-// QR code endpoint (for manual access)
-app.get('/qr', (req, res) => {
-  if (whatsappQrCode) {
-    res.send(`
-      <h2>📱 WhatsApp QR Code</h2>
-      <pre style="background: #f5f5f5; padding: 20px; border-radius: 5px;">${whatsappQrCode}</pre>
-      <p>Scan with WhatsApp → Linked Devices</p>
-    `);
-  } else {
-    res.send('<h2>QR code not ready yet. Wait a moment...</h2>');
-  }
-});
-
 // Health endpoint
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok',
-    whatsapp: whatsappQrCode ? 'qr_ready' : 'starting',
-    telegram: telegramBot ? 'online' : 'offline',
+    status: 'online',
+    telegram: botInfo ? `@${botInfo.username}` : 'starting',
+    users: userCount,
+    server: 'Render',
     timestamp: new Date().toISOString()
   });
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
-  console.log(`🌐 Web interface: https://your-render-app.onrender.com`);
-  console.log(`📱 QR endpoint: https://your-render-app.onrender.com/qr`);
-  startBots();
+  console.log(`🌐 Web URL: https://your-render-app.onrender.com`);
+  startTelegramBot();
 });
 
-// Telegram Bot
+// Telegram Bot Function
 async function startTelegramBot() {
   try {
-    const { Telegraf } = require('telegraf');
     const token = process.env.TELEGRAM_BOT_TOKEN;
     
     if (!token) {
-      console.log('⚠️ TELEGRAM_BOT_TOKEN not set');
-      return null;
+      console.log('❌ TELEGRAM_BOT_TOKEN not set in environment variables');
+      console.log('ℹ️ Please add it in Render Dashboard → Environment');
+      return;
     }
     
     console.log('🤖 Starting Telegram bot...');
+    
+    // Create bot instance
     const bot = new Telegraf(token);
     
+    // Get bot info
+    botInfo = await bot.telegram.getMe();
+    console.log(`✅ Telegram Bot: @${botInfo.username}`);
+    console.log(`✅ Bot ID: ${botInfo.id}`);
+    console.log(`✅ Bot Name: ${botInfo.first_name}`);
+    
+    // ===== BOT COMMANDS =====
+    
+    // Start command
     bot.command('start', (ctx) => {
-      ctx.reply(
-        '🤖 *Bot Started!*\n\n' +
-        'Commands:\n' +
-        '/qr - Get WhatsApp QR code\n' +
-        '/status - Check bot status\n' +
-        '/help - Show help',
-        { parse_mode: 'Markdown' }
-      );
+      userCount++;
+      ctx.replyWithMarkdown(`
+🤖 *Welcome to ClawdBot!*
+
+I'm your AI assistant running on Render.
+
+*Available Commands:*
+/help - Show all commands
+/test - Test if bot is working
+/chat - Start a conversation
+/about - About this bot
+/status - Check bot status
+
+*Quick Start:*
+1. Just send me any message
+2. I'll respond with AI assistance
+3. Type /help anytime for commands
+
+Developed with ❤️ for Telegram + WhatsApp integration.
+      `);
+      
+      console.log(`👤 New user: ${ctx.from.first_name} (${ctx.from.id})`);
     });
     
-    bot.command('qr', async (ctx) => {
-      if (whatsappQrCode) {
-        await ctx.reply('📱 *WhatsApp QR Code:*', { parse_mode: 'Markdown' });
-        await ctx.reply(`\`\`\`\n${whatsappQrCode}\n\`\`\``, { parse_mode: 'Markdown' });
-        await ctx.reply('1. Open WhatsApp\n2. Tap ⋮ → Linked Devices\n3. Tap "Link a Device"\n4. Scan QR');
-      } else {
-        await ctx.reply('QR code not ready yet. Try again in 30 seconds.');
-      }
-    });
-    
-    bot.command('status', (ctx) => {
-      const status = whatsappQrCode ? '✅ QR Ready' : '⏳ Starting...';
-      ctx.reply(`Status:\n• Telegram: ✅ Online\n• WhatsApp: ${status}`);
-    });
-    
+    // Help command
     bot.command('help', (ctx) => {
-      ctx.reply(
-        'Available Commands:\n' +
-        '/start - Start bot\n' +
-        '/qr - Get WhatsApp QR\n' +
-        '/status - Check status\n' +
-        '/help - Show help'
-      );
+      ctx.replyWithMarkdown(`
+*📚 Help Menu*
+
+*Basic Commands:*
+/start - Start the bot
+/help - Show this help
+/test - Test bot response
+/about - About this bot
+/status - Bot status
+
+*AI Commands:*
+/chat [message] - Chat with AI
+/ask [question] - Ask anything
+
+*Admin Commands:*
+/users - Show user count
+/stats - Show bot statistics
+
+*Need more help?*
+Just send me any message and I'll respond!
+      `);
     });
     
+    // Test command
+    bot.command('test', (ctx) => {
+      ctx.reply('✅ Bot is working perfectly!');
+      ctx.reply(`Server: Render\nTime: ${new Date().toLocaleString()}\nStatus: ✅ Online`);
+    });
+    
+    // About command
+    bot.command('about', (ctx) => {
+      ctx.replyWithMarkdown(`
+*🤖 About ClawdBot*
+
+*Version:* 1.0.0
+*Platform:* Telegram + WhatsApp
+*Host:* Render Free Tier
+*Status:* Active ✅
+
+*Features:*
+• AI-powered responses
+• Multi-platform support
+• 24/7 availability
+• Free to use
+
+*Developer:* AI Assistant Project
+*Goal:* Provide free AI access to everyone
+      `);
+    });
+    
+    // Status command
+    bot.command('status', (ctx) => {
+      ctx.replyWithMarkdown(`
+*📊 Bot Status*
+
+• *Status:* ✅ **Online**
+• *Users:* ${userCount}
+• *Uptime:* ${process.uptime().toFixed(0)} seconds
+• *Memory:* ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB
+• *Platform:* Telegram
+• *Server:* Render
+• *Next Feature:* WhatsApp Integration
+      `);
+    });
+    
+    // Chat command
+    bot.command('chat', (ctx) => {
+      const message = ctx.message.text.replace('/chat', '').trim();
+      if (message) {
+        ctx.reply(`You said: "${message}"\n\n(Coming soon: AI response integration!)`);
+      } else {
+        ctx.reply('Send: /chat [your message]\nExample: /chat Hello, how are you?');
+      }
+    });
+    
+    // Users command
+    bot.command('users', (ctx) => {
+      ctx.reply(`Total users: ${userCount}\n\nThank you for using the bot! 🙏`);
+    });
+    
+    // Handle any text message
+    bot.on('text', (ctx) => {
+      const userMessage = ctx.message.text;
+      
+      // Don't process commands
+      if (userMessage.startsWith('/')) return;
+      
+      console.log(`💬 Message from ${ctx.from.first_name}: ${userMessage}`);
+      
+      // Simple echo response (replace with AI later)
+      ctx.replyWithMarkdown(`
+*You said:* ${userMessage}
+
+*My response:* I received your message! Currently I'm in basic mode. AI integration will be added soon!
+
+Try these commands:
+• /help - Show all commands
+• /chat - Start AI conversation
+• /status - Check bot status
+
+*Coming soon:* Claude AI integration! 🚀
+      `);
+    });
+    
+    // Error handling
+    bot.catch((err, ctx) => {
+      console.error(`Bot error:`, err);
+      ctx.reply('❌ An error occurred. Please try again.');
+    });
+    
+    // Launch bot
     await bot.launch();
-    console.log('✅ Telegram bot started!');
+    console.log('🎉 Telegram bot started successfully!');
     
-    const botInfo = await bot.telegram.getMe();
-    console.log(`📱 Telegram Bot: @${botInfo.username}`);
-    
-    return bot;
-    
-  } catch (error) {
-    console.log('❌ Telegram bot error:', error.message);
-    return null;
-  }
-}
-
-// WhatsApp Bot with FIX for Render
-async function startWhatsAppBot() {
-  try {
-    const { Client, LocalAuth } = require('whatsapp-web.js');
-    const qrcode = require('qrcode-terminal');
-    
-    console.log('📱 Setting up WhatsApp...');
-    
-    // SPECIAL SETUP FOR RENDER
-    const puppeteerOptions = {
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--single-process'
-      ]
-    };
-    
-    // Try to use puppeteer-core with chrome-aws-lambda for Render
-    try {
-      const chromium = require('chrome-aws-lambda');
-      puppeteerOptions.executablePath = await chromium.executablePath;
-      console.log('✅ Using chrome-aws-lambda Chromium');
-    } catch (e) {
-      console.log('⚠️ chrome-aws-lambda not available, using default');
-    }
-    
-    const client = new Client({
-      authStrategy: new LocalAuth({
-        clientId: "render-whatsapp-bot"
-      }),
-      puppeteer: puppeteerOptions,
-      webVersionCache: {
-        type: "remote",
-        remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html"
-      }
-    });
-    
-    client.on('qr', (qr) => {
-      console.log('\n📱 ======== WHATSAPP QR CODE ========');
-      qrcode.generate(qr, { small: true });
-      console.log(`QR: ${qr}`);
-      console.log('====================================\n');
-      
-      whatsappQrCode = qr;
-      
-      // Notify Telegram
-      if (telegramBot) {
-        telegramBot.telegram.sendMessage(
-          process.env.ADMIN_CHAT_ID || 'any_chat_id',
-          '📱 *WhatsApp QR Code Ready!*\nSend /qr to get it.',
-          { parse_mode: 'Markdown' }
-        ).catch(e => console.log('Telegram notify error:', e.message));
-      }
-    });
-    
-    client.on('ready', () => {
-      console.log('✅ WhatsApp connected!');
-      if (telegramBot) {
-        telegramBot.telegram.sendMessage(
-          process.env.ADMIN_CHAT_ID || 'any_chat_id',
-          '✅ WhatsApp is now connected!',
-          { parse_mode: 'Markdown' }
-        ).catch(() => {});
-      }
-    });
-    
-    client.on('message', (msg) => {
-      console.log(`📱 WhatsApp: ${msg.from}: ${msg.body}`);
-    });
-    
-    client.on('auth_failure', (error) => {
-      console.log('❌ WhatsApp auth failed:', error);
-    });
-    
-    await client.initialize();
-    return client;
+    // Enable graceful stop
+    process.once('SIGINT', () => bot.stop('SIGINT'));
+    process.once('SIGTERM', () => bot.stop('SIGTERM'));
     
   } catch (error) {
-    console.log('❌ WhatsApp setup failed:', error.message);
-    console.log('⚠️ Try alternative approach...');
+    console.log('❌ Telegram bot failed to start:', error.message);
+    console.log('⚠️ Common issues:');
+    console.log('1. Invalid Telegram bot token');
+    console.log('2. Token not set in environment variables');
+    console.log('3. Network issues on Render');
     
-    // Alternative: Wait for manual QR via web interface
+    // Try fallback
     setTimeout(() => {
-      whatsappQrCode = "MANUAL_SETUP_REQUIRED";
-      console.log('⚠️ WhatsApp requires manual setup via web interface');
+      console.log('🔄 Attempting to restart bot...');
+      startTelegramBot();
     }, 10000);
-    
-    return null;
   }
 }
 
-// Start both bots
-async function startBots() {
-  console.log('🚀 Starting both bots...');
-  
-  // Start Telegram first
-  telegramBot = await startTelegramBot();
-  
-  // Then start WhatsApp
-  whatsappClient = await startWhatsAppBot();
-  
-  console.log('🎉 Bot startup complete!');
-  console.log('📱 Check Telegram for QR code or visit /qr endpoint');
-}
-
-// Keep alive ping
+// Keep alive
 setInterval(() => {
-  console.log('❤️ Bot heartbeat:', new Date().toISOString());
-}, 300000); // Every 5 minutes
+  console.log('❤️ Heartbeat: Bot is alive at', new Date().toISOString());
+}, 60000);
