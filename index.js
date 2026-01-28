@@ -18,7 +18,7 @@ function initializeAI() {
   if (process.env.GOOGLE_API_KEY) {
     try {
       genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-      model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       console.log('✅ Google AI initialized');
       return true;
     } catch (error) {
