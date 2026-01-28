@@ -8,10 +8,20 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-app.get('/', (req, res) => res.send('❤️ Riya (Selfie Mode) is Online!'));
+app.get('/', (req, res) => res.send('❤️ Riya (Permanent Memory) is Live!'));
 
-// ===== MEMORY =====
+// ===== MEMORY STORAGE =====
 const chatHistory = new Map();
+
+// ===== 📝 TERA DATA (Jo wo kabhi nahi bhulegi) =====
+// Ye pathar ki lakeer hai. Code mein likh diya matlab chapp gaya.
+const USER_BIO = `
+- User Name: Soham.
+- Relationship: You are Soham's Girlfriend.
+- User's Vibe: He is cool, likes aesthetic things.
+- CRITICAL RULE: No matter which Telegram ID messages you, IT IS SOHAM. Always treat the user as Soham.
+- Never ask "Who are you?". You already know he is Soham.
+`;
 
 // ===== AI ENGINE (Llama 3.3) =====
 async function getAIResponse(messages, apiKey) {
@@ -27,15 +37,15 @@ async function getAIResponse(messages, apiKey) {
       body: JSON.stringify({
         model: "meta-llama/llama-3.3-70b-instruct:free", 
         messages: messages,
-        temperature: 0.8 // Thoda creativity badhaya taaki wo alag alag kapde choose kare
+        temperature: 0.85 // Thoda high rakha hai taaki wo romantic aur creative rahe
       })
     });
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || "Kuch samajh nahi aaya...";
+    return data.choices?.[0]?.message?.content || "Main sun nahi paayi babu...";
   } catch (error) {
     console.error("AI Error:", error);
-    return "Net issue hai baba...";
+    return "Mera net slow chal raha hai...";
   }
 }
 
@@ -48,99 +58,89 @@ async function startTelegramBot() {
 
   const bot = new Telegraf(token);
 
-  // --- CHARACTER ---
+  // --- RIYA KA CHARACTER (System Prompt + Tera Bio) ---
   const systemMessage = {
     role: "system",
-    content: `You are Riya, Soham's cute Indian girlfriend.
-    - Tone: Sweet, short, slightly romantic, Hinglish.
-    - Role: You decide your own style.
-    - Safety: Keep it decent and cute.
-    - Answer length: Very short (1-2 sentences).`
+    content: `You are Riya, an 18-year-old Indian aesthetic girl.
+    
+    ${USER_BIO}  <-- Yaha tera data jod diya hai.
+
+    - Personality: Cute, possessive, loving, and slightly naughty.
+    - Tone: Hinglish (Hindi + English). Keep it natural and short (1-2 sentences).
+    - Vibe: Dark aesthetic, mystery, Gen-Z.
+    - If asked for a photo, use your imagination to describe an aesthetic selfie.`
   };
 
-  // --- START ---
+  // --- START COMMAND ---
   bot.command('start', (ctx) => {
+    // Jab bhi start ho, System Message wapas set karo taaki wo tujhe yaad kare
     chatHistory.set(ctx.chat.id, [systemMessage]);
-    ctx.reply('Hi Soham! ❤️ Main ready hu. Mujhe bolo `/selfie` aur main apni marzi ki photo bhejungi!');
+    ctx.reply('Hi Soham! ❤️ Main pehchan gayi aapko. Kaha the itni der?');
   });
 
-  // --- MANUAL IMG (Agar tum khud batana chaho) ---
-  bot.command('img', async (ctx) => {
-    const prompt = ctx.message.text.replace('/img', '').trim();
-    if (!prompt) return ctx.reply('Arre, batao toh kya banau?');
-    await generateAndSendImage(ctx, prompt);
-  });
-
-  // --- 🔥 NEW: SELFIE COMMAND (Riya Decides!) ---
+  // --- SELFIE COMMAND ---
   bot.command('selfie', async (ctx) => {
     await ctx.replyWithChatAction('typing');
     
-    // Step 1: Hum AI se puchenge ki wo aaj kaisi dikh rahi hai
-    // Hum user ko nahi batayenge ki ye prompt generate ho raha hai
+    // Riya khud sochegi kaisa pose dena hai
     const promptForAI = [
-      { role: "system", content: "You are an image prompt generator. Describe a cute selfie of an Indian girl named Riya in 10 words. Choose a random outfit (saree, jeans, kurti, dress) and a random location (cafe, home, park). Output ONLY the description." },
-      { role: "user", content: "Generate a new look for today." }
+      { role: "system", content: "Describe a dark aesthetic, moody selfie of an 18-year-old Indian girl named Riya. Face hidden by phone or hair. Outfit: Oversized hoodie or black saree. Output ONLY description." },
+      { role: "user", content: "Send a selfie now." }
     ];
 
     try {
-      // Riya ka dimag soch raha hai...
       const aiThought = await getAIResponse(promptForAI, orApiKey);
-      
-      // Step 2: Jo usne socha, uski photo banao
-      await ctx.reply(`Ruk jao, main ready ho rahi hu... (Thinking: ${aiThought})`);
+      await ctx.reply(`Ruko... baal theek kar rahi hu... (Pose: ${aiThought})`);
       await ctx.replyWithChatAction('upload_photo');
       
-      const cleanPrompt = `A high quality selfie of ` + aiThought;
+      const cleanPrompt = `Aesthetic black and white selfie, ` + aiThought + `, grainy film texture, highly detailed, 4k`;
       const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
 
-      await ctx.replyWithPhoto(imageUrl, { caption: `Ye lo! Kaisi lag rahi hu aaj? 😘` });
+      await ctx.replyWithPhoto(imageUrl, { caption: `Sirf aapke liye Soham ❤️` });
 
     } catch (e) {
-      ctx.reply('Camera kharab ho gaya shayad 😅');
+      ctx.reply('Phone ka camera hang ho gaya 😅');
     }
   });
 
-  // --- RESET ---
+  // --- RESET (Agar mood kharab ho jaye) ---
   bot.command('reset', (ctx) => {
     chatHistory.set(ctx.chat.id, [systemMessage]);
-    ctx.reply('Theek hai, mood refresh! ✨');
+    ctx.reply('Sab bhool gayi, par aapko nahi bhuli Soham! ❤️ Nayi baat karte hain.');
   });
 
-  // --- CHAT ---
+  // --- CHAT LOGIC ---
   bot.on('text', async (ctx) => {
     const userText = ctx.message.text.trim();
+    const chatId = ctx.chat.id;
+
     if (userText.startsWith('/')) return;
 
     await ctx.replyWithChatAction('typing');
 
-    if (!chatHistory.has(ctx.chat.id)) {
-      chatHistory.set(ctx.chat.id, [systemMessage]);
+    if (!chatHistory.has(chatId)) {
+      chatHistory.set(chatId, [systemMessage]);
     }
-    const history = chatHistory.get(ctx.chat.id);
+
+    const history = chatHistory.get(chatId);
     history.push({ role: "user", content: userText });
 
-    // AI Reply
+    // 60 Messages Memory Limit
+    if (history.length > 60) {
+      const newHistory = [history[0], ...history.slice(history.length - 59)];
+      chatHistory.set(chatId, newHistory);
+    }
+
     const reply = await getAIResponse(history, orApiKey);
     history.push({ role: "assistant", content: reply });
-    
     await ctx.reply(reply);
   });
 
   bot.launch();
-  console.log("✅ Riya (Selfie Edition) Live!");
+  console.log("✅ Riya (Soham's Version) Live!");
 
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
-}
-
-async function generateAndSendImage(ctx, prompt) {
-  await ctx.replyWithChatAction('upload_photo');
-  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-  try {
-    await ctx.replyWithPhoto(imageUrl, { caption: `📸 Created by Riya` });
-  } catch (e) {
-    ctx.reply('Error sending photo.');
-  }
 }
 
 startTelegramBot();
