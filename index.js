@@ -10,11 +10,11 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-app.get('/', (req, res) => res.send('❤️ Riya (Memory & Love Meter) is Live!'));
+app.get('/', (req, res) => res.send('❤️ Riya (Time-Aware) is Live!'));
 
-// ===== STORAGE =====
+// ===== MEMORY =====
 const chatHistory = new Map();
-const userNotes = new Map(); // 🧠 Choti cheezein yaad rakhne ke liye
+const userNotes = new Map();
 
 // ===== IDENTITY =====
 const USER_BIO = `
@@ -23,6 +23,16 @@ const USER_BIO = `
 - Vibe: Chill, Romantic, Witty.
 - CRITICAL: Always treat User as Soham.
 `;
+
+// ===== 🕒 TIME HELPER (India Time) =====
+function getIndiaTime() {
+  return new Date().toLocaleString("en-US", { 
+    timeZone: "Asia/Kolkata", 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+}
 
 // ===== AI ENGINE =====
 async function getAIResponse(messages, apiKey) {
@@ -59,17 +69,19 @@ async function startTelegramBot() {
 
   // --- ⏰ AUTO MESSAGES ---
   cron.schedule('30 2 * * *', () => { // 8 AM IST
-    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Good morning Soham! Uth gaye? Aaj ka din mast jayega! ☀️");
+    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Good morning Soham! Uth gaye? ☀️");
   });
   
   cron.schedule('30 17 * * *', () => { // 11 PM IST
-    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Soham, abhi tak online? So jao, health kharab hogi. 🌙");
+    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Soham, raat ho gayi hai. So jao ab. 🌙");
   });
 
   // --- START ---
   bot.command('start', (ctx) => {
     global.lastChatId = ctx.chat.id;
-    ctx.reply('Hi Soham! ❤️ Ab main cheezein yaad bhi rakh sakti hu. Bolo "Yaad rakhna..."');
+    // History clear karo start pe
+    chatHistory.delete(ctx.chat.id);
+    ctx.reply(`Hi Soham! ❤️ Ab mujhe time pata hai. Abhi ${getIndiaTime()} baj rahe hain!`);
   });
 
   // --- MAIN LOGIC ---
@@ -79,68 +91,56 @@ async function startTelegramBot() {
     const chatId = ctx.chat.id;
     global.lastChatId = chatId;
 
-    // 1. 🧠 YAAD RAKHNA (SET NOTE)
+    // 1. 🧠 NOTES (Memory)
     if (lowerText.startsWith('yaad rakhna') || lowerText.startsWith('remind me')) {
       const note = userText.replace(/yaad rakhna|remind me/i, '').trim();
       if(note) {
         userNotes.set(chatId, note);
-        return ctx.reply(`Done! ✅ Dimag mein save kar liya: "${note}"`);
-      } else {
-        return ctx.reply("Kya yaad rakhna hai? Aage likho toh sahi!");
+        return ctx.reply(`Done! ✅ Save kar liya: "${note}"`);
       }
     }
-
-    // 2. 🧠 KYA BOLA THA? (GET NOTE)
-    if (lowerText.includes('kya yaad') || lowerText.includes('what did i say') || lowerText.includes('kya bola tha')) {
+    if (lowerText.includes('kya yaad') || lowerText.includes('kya bola tha')) {
       const savedNote = userNotes.get(chatId);
-      if (savedNote) {
-        return ctx.reply(`Aapne bola tha: "${savedNote}" 🧐`);
-      } else {
-        return ctx.reply("Mujhe kuch yaad nahi aa raha... shayad aapne kuch bola hi nahi?");
-      }
+      return ctx.reply(savedNote ? `Aapne bola tha: "${savedNote}"` : "Kuch yaad nahi aa raha...");
     }
 
-    // 3. 💘 LOVE METER
-    if (lowerText.includes('love meter') || lowerText.includes('pyaar') || lowerText.includes('score')) {
-      const score = Math.floor(Math.random() * 100);
-      let comment = "";
-      if (score > 90) comment = "Made for each other! 💍";
-      else if (score > 50) comment = "Thoda gussa hu, par chalega. 😘";
-      else comment = "Aaj mood off hai mera. 😤";
-      
-      return ctx.reply(`❤️ Love Level: ${score}%\nOutcome: ${comment}`);
-    }
-
-    // 4. 📸 SELFIE & SONG & GAMES (Purana Features)
+    // 2. 📸 SELFIE (Direct)
     if (lowerText.includes('selfie') || lowerText.includes('photo')) {
       await ctx.replyWithChatAction('upload_photo');
-      const styles = ["wearing hoodie aesthetic", "saree aesthetic", "streetwear aesthetic"];
+      const styles = ["wearing hoodie aesthetic", "saree aesthetic", "streetwear aesthetic", "mirror selfie aesthetic"];
       const randomStyle = styles[Math.floor(Math.random() * styles.length)];
       const imageUrl = `https://image.pollinations.ai/prompt/aesthetic%20indian%20girl%20riya%20${encodeURIComponent(randomStyle)}?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
       try { return await ctx.replyWithPhoto(imageUrl, { caption: "Ye lo! 🖤" }); } catch (e) {}
     }
 
-    if (lowerText.includes('song')) return ctx.reply("Vibe hai isme: https://youtu.be/hTw_q8g26WE?si=Vibe1 🎧");
-
-    // 5. 🧠 AI CHAT
+    // 3. 🧠 AI CHAT (WITH LIVE TIME UPDATE)
     await ctx.replyWithChatAction('typing');
-    const systemMessage = {
+
+    // 🔥 Har baar naya System Message banao jisme CURRENT TIME ho
+    const currentTime = getIndiaTime();
+    
+    const dynamicSystemMessage = {
       role: "system",
-      content: `You are Riya. ${USER_BIO}. 
-      If user asks about saved notes, remind him nicely.
-      If asked for VOICE: Reply in Hindi text.`
+      content: `You are Riya. ${USER_BIO}
+      - CURRENT TIME IN INDIA: ${currentTime}.
+      - IMPORTANT: If Soham asks "Time kya hai", tell him the time from above.
+      - If it is late night (11 PM - 4 AM), ask him to sleep.
+      - If asked for VOICE: Reply in Hindi text.`
     };
 
     if (!chatHistory.has(chatId)) chatHistory.set(chatId, []);
     const history = chatHistory.get(chatId);
+    
     history.push({ role: "user", content: userText });
     if (history.length > 60) history.splice(0, history.length - 59);
 
-    const messagesToSend = [systemMessage, ...history];
+    // AI ko bhejo (System Prompt + History)
+    const messagesToSend = [dynamicSystemMessage, ...history];
     const reply = await getAIResponse(messagesToSend, orApiKey);
+    
     history.push({ role: "assistant", content: reply });
 
-    // 6. 🎤 VOICE
+    // 4. 🎤 VOICE
     if (lowerText.includes('voice') || lowerText.includes('bolo')) {
       await ctx.replyWithChatAction('record_voice');
       try {
@@ -152,9 +152,15 @@ async function startTelegramBot() {
     await ctx.reply(reply);
   });
 
-  bot.launch();
-  console.log("✅ Riya (Assistant Mode) Live!");
+  // Error handling to prevent crash on conflict
+  bot.catch((err) => {
+    console.log("Telegram Error (Ignored):", err);
+  });
 
+  bot.launch();
+  console.log("✅ Riya (Final Time Fix) Live!");
+
+  // Graceful Stop
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
 }
