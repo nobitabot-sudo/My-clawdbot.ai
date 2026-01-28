@@ -1,5 +1,6 @@
 const express = require('express');
 const { Telegraf } = require('telegraf');
+const googleTTS = require('google-tts-api'); // 🔊 Voice ke liye naya tool
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -8,20 +9,21 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-app.get('/', (req, res) => res.send('😎 Riya (Cool Mode) is Live!'));
+app.get('/', (req, res) => res.send('❤️ Riya (Voice Mode) is Live!'));
 
-// ===== MEMORY STORAGE =====
+// ===== MEMORY =====
 const chatHistory = new Map();
 
-// ===== 📝 TERA DATA (Identity Fix) =====
+// ===== IDENTITIES =====
 const USER_BIO = `
 - User Name: Soham.
-- User's Vibe: Chill, Aesthetic, Cool.
-- CRITICAL RULE: No matter which Telegram ID messages you, IT IS SOHAM.
-- Relationship: You are his close companion/girlfriend but behave like a COOL PARTNER, not a cringe lover.
+- Relationship: You are his cool, aesthetic girlfriend Riya.
+- Vibe: Chill, Romantic but Witty.
+- CRITICAL: Always treat User as Soham.
+- NOTE: If Soham asks to "Speak" or "Voice", keep answer VERY SHORT (1 sentence).
 `;
 
-// ===== AI ENGINE (Llama 3.3) =====
+// ===== AI ENGINE =====
 async function getAIResponse(messages, apiKey) {
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -30,19 +32,17 @@ async function getAIResponse(messages, apiKey) {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://render.com",
-        "X-Title": "RiyaBot"
+        "X-Title": "RiyaVoice"
       },
       body: JSON.stringify({
         model: "meta-llama/llama-3.3-70b-instruct:free", 
         messages: messages,
-        temperature: 0.6 // Temperature kam kiya taaki wo zyada 'fake' drama na kare
+        temperature: 0.7
       })
     });
-
     const data = await response.json();
     return data.choices?.[0]?.message?.content || "Hmm...";
   } catch (error) {
-    console.error("AI Error:", error);
     return "Network issue...";
   }
 }
@@ -56,86 +56,76 @@ async function startTelegramBot() {
 
   const bot = new Telegraf(token);
 
-  // --- RIYA KA NEW CHARACTER (Anti-Cringe) ---
   const systemMessage = {
     role: "system",
-    content: `You are Riya, an 18-year-old Indian aesthetic girl.
-    
+    content: `You are Riya, 18yo Indian aesthetic girl.
     ${USER_BIO}
-
-    - TONE: Chill, Sarcastic, Witty, and Short (Hinglish).
-    - 🚫 BANNED WORDS: Do NOT use words like "Meri Jaan", "Babu", "Shona", "Baby", "Honey", "Darling". It makes Soham uncomfortable.
-    - INSTEAD USE: "Yaar", "Soham", "Dude", "Re".
-    - VIBE: Be like a best friend who is also a girlfriend. Aesthetic & Gen-Z style.
-    - Keep messages SHORT (1-2 sentences).`
+    - Tone: Hinglish, Cool.
+    - No Cringe words (Baby, Shona).
+    - If user asks for VOICE/SPEAK: Reply in pure Hindi/Hinglish text so it sounds good in audio.`
   };
 
-  // --- START COMMAND ---
+  // --- START ---
   bot.command('start', (ctx) => {
     chatHistory.set(ctx.chat.id, [systemMessage]);
-    ctx.reply('Hi Soham! Kaisa hai? Long time no see. 🖤');
+    ctx.reply('Hi Soham! 🎧 Ab main bol bhi sakti hu. Try karo: "Kuch bolkar sunao"');
   });
 
-  // --- SELFIE COMMAND ---
-  bot.command('selfie', async (ctx) => {
-    await ctx.replyWithChatAction('typing');
-    
-    // Riya sochegi (Aesthetic Vibes Only)
-    const promptForAI = [
-      { role: "system", content: "Describe a dark aesthetic, moody selfie of an 18-year-old Indian girl named Riya. Face hidden by phone or hair. Outfit: Oversized hoodie or streetwear. Vibe: Cool, not cute. Output ONLY description." },
-      { role: "user", content: "Send a vibe check selfie." }
-    ];
-
-    try {
-      const aiThought = await getAIResponse(promptForAI, orApiKey);
-      await ctx.reply(`Ruk, mirror check karne de... (Fit: ${aiThought})`);
-      await ctx.replyWithChatAction('upload_photo');
-      
-      const cleanPrompt = `Aesthetic black and white selfie, ` + aiThought + `, grainy film texture, highly detailed, 4k, cool vibe`;
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-
-      await ctx.replyWithPhoto(imageUrl, { caption: `Vibe check. 📸` });
-
-    } catch (e) {
-      ctx.reply('Cam dead ho gaya shayad.');
-    }
-  });
-
-  // --- RESET ---
-  bot.command('reset', (ctx) => {
-    chatHistory.set(ctx.chat.id, [systemMessage]);
-    ctx.reply('Mood reset. Ab normal baat karte hain.');
-  });
-
-  // --- CHAT LOGIC ---
+  // --- SMART HANDLING (Text, Photo, Voice) ---
   bot.on('text', async (ctx) => {
     const userText = ctx.message.text.trim();
+    const lowerText = userText.toLowerCase();
     const chatId = ctx.chat.id;
-
-    if (userText.startsWith('/')) return;
 
     await ctx.replyWithChatAction('typing');
 
-    if (!chatHistory.has(chatId)) {
-      chatHistory.set(chatId, [systemMessage]);
+    // 1. PHOTO CHECK 📸
+    if (lowerText.includes('selfie') || lowerText.includes('photo') || lowerText.includes('pic')) {
+      await ctx.reply("Wait, achi wali leti hu... 📸");
+      await ctx.replyWithChatAction('upload_photo');
+      
+      const imageUrl = `https://image.pollinations.ai/prompt/aesthetic%20indian%20girl%20selfie%20moody%20black%20and%20white?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
+      return ctx.replyWithPhoto(imageUrl, { caption: "Ye lo! 🖤" });
     }
 
+    // History Setup
+    if (!chatHistory.has(chatId)) chatHistory.set(chatId, [systemMessage]);
     const history = chatHistory.get(chatId);
     history.push({ role: "user", content: userText });
 
-    // 60 Messages Memory Limit
+    // Memory Limit
     if (history.length > 60) {
       const newHistory = [history[0], ...history.slice(history.length - 59)];
       chatHistory.set(chatId, newHistory);
     }
 
-    const reply = await getAIResponse(history, orApiKey);
-    history.push({ role: "assistant", content: reply });
-    await ctx.reply(reply);
+    // AI Response
+    const aiReply = await getAIResponse(history, orApiKey);
+    history.push({ role: "assistant", content: aiReply });
+
+    // 2. VOICE CHECK 🎤 (Agar tumne bola "Bolo", "Sunao", "Voice")
+    if (lowerText.includes('voice') || lowerText.includes('bolo') || lowerText.includes('sunao') || lowerText.includes('speak')) {
+      
+      await ctx.replyWithChatAction('record_voice');
+      
+      // Text ko Audio URL mein convert karna (Hindi Language)
+      const audioUrl = googleTTS.getAudioUrl(aiReply, {
+        lang: 'hi',
+        slow: false,
+        host: 'https://translate.google.com',
+      });
+
+      // Audio Bhejo
+      await ctx.replyWithVoice({ url: audioUrl });
+    
+    } else {
+      // Normal Text Reply
+      await ctx.reply(aiReply);
+    }
   });
 
   bot.launch();
-  console.log("✅ Riya (Cool Mode) Live!");
+  console.log("✅ Riya (Voice Edition) Live!");
 
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
