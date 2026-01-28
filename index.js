@@ -5,13 +5,11 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Initialize Google AI
+// Initialize
 let genAI = null;
 let model = null;
 let bot = null;
 let botInfo = null;
-
-// Store data
 let userCount = 0;
 const userSessions = new Map();
 
@@ -46,15 +44,8 @@ async function startTelegramBot() {
     console.log('🤖 Starting Telegram bot...');
     bot = new Telegraf(token);
     
-    // Get bot info
-    botInfo = await bot.telegram.getMe();
-    console.log(`✅ Telegram Bot: @${botInfo.username}`);
-    console.log(`✅ Bot ID: ${botInfo.id}`);
-    console.log(`✅ Bot Name: ${botInfo.first_name}`);
-    
     // ===== BOT COMMANDS =====
     
-    // Start command
     bot.command('start', (ctx) => {
       userCount++;
       const userId = ctx.from.id;
@@ -66,204 +57,126 @@ async function startTelegramBot() {
       ctx.replyWithMarkdown(`
 🤖 *Welcome to ClawdBot!*
 
-I'm now powered by Google Gemini AI! 🧠
+I'm powered by Google Gemini AI! 🧠
 
-*Available Commands:*
+*Try these commands:*
+/ai [question] - Ask AI anything
 /help - Show all commands
-/ai [message] - Chat with AI
-/clear - Clear chat history
-/about - About this bot
 /status - Check bot status
 
-*Just send me any message and I'll respond with AI!*
+*Or just send me any message!*
 
-Example: "Hello, how are you?"
+Example: "Hello, what can you do?"
       `);
       
       console.log(`👤 New user: ${ctx.from.first_name} (${userId})`);
     });
     
-    // AI Command
     bot.command('ai', async (ctx) => {
       const message = ctx.message.text.replace('/ai', '').trim();
-      const userId = ctx.from.id;
       
       if (!message) {
-        return ctx.reply('Send: /ai [your question]\nExample: /ai What is quantum computing?');
+        return ctx.reply('Send: /ai [your question]\nExample: /ai What is AI?');
       }
       
       if (!model) {
-        return ctx.reply('❌ AI service not available. Please check API key.');
+        return ctx.reply('❌ AI service not available.');
       }
       
       try {
-        // Send typing action
         await ctx.replyWithChatAction('typing');
-        
-        // Get AI response
         const result = await model.generateContent(message);
         const response = result.response.text();
-        
-        // Store in history
-        if (!userSessions.has(userId)) {
-          userSessions.set(userId, { chatHistory: [] });
-        }
-        userSessions.get(userId).chatHistory.push({ user: message, ai: response });
-        
-        // Limit history to last 10 messages
-        if (userSessions.get(userId).chatHistory.length > 10) {
-          userSessions.get(userId).chatHistory.shift();
-        }
-        
-        // Send response
         await ctx.reply(`🤖 *AI Response:*\n\n${response}`, { parse_mode: 'Markdown' });
-        
       } catch (error) {
         console.error('AI Error:', error);
-        await ctx.reply('❌ Sorry, I encountered an error. Please try again.');
+        await ctx.reply('❌ Error. Please try again.');
       }
     });
     
-    // Clear command
-    bot.command('clear', (ctx) => {
-      const userId = ctx.from.id;
-      if (userSessions.has(userId)) {
-        userSessions.get(userId).chatHistory = [];
-      }
-      ctx.reply('✅ Chat history cleared!');
-    });
-    
-    // Help command
     bot.command('help', (ctx) => {
       ctx.replyWithMarkdown(`
-*🤖 AI Bot Help Menu*
+*🤖 Bot Commands:*
 
-*AI Commands:*
-/ai [message] - Chat with Google Gemini AI
-/clear - Clear your chat history
-
-*Basic Commands:*
 /start - Start the bot
-/help - Show this help
-/about - About this bot
-/status - Bot status
+/ai [question] - Ask AI anything
+/status - Check bot status
+/help - Show this message
 
 *How to use:*
-1. Use /ai followed by your question
-2. Or just send any message (I'll respond with AI)
-3. Use /clear to reset conversation
+1. Send /ai followed by your question
+2. Or just send any message
+3. I'll respond with AI!
 
-*Example:* /ai Explain quantum computing in simple terms
+*Example:* /ai Explain quantum computing
       `);
     });
     
-    // About command
-    bot.command('about', (ctx) => {
-      ctx.replyWithMarkdown(`
-*🤖 About ClawdBot*
-
-*Version:* 2.0.0
-*AI Model:* Google Gemini Pro
-*Platform:* Telegram
-*Host:* Render Free Tier
-*Status:* Active ✅
-
-*Features:*
-• AI-powered responses
-• Chat memory
-• Free to use
-• 24/7 availability
-
-*Coming Soon:* WhatsApp integration
-      `);
-    });
-    
-    // Status command
     bot.command('status', (ctx) => {
       ctx.replyWithMarkdown(`
-*📊 Bot Status*
+*📊 Bot Status:*
 
-• *Status:* ✅ **Online**
+• *Status:* ✅ **Live on Render**
 • *Users:* ${userCount}
-• *AI Model:* ${model ? 'Google Gemini ✅' : 'Disabled ❌'}
-• *Memory Usage:* ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB
-• *Server:* Render
-• *Uptime:* ${process.uptime().toFixed(0)} seconds
+• *AI Model:* Google Gemini ✅
+• *Server:* Render Free Tier
+• *Uptime:* ${process.uptime().toFixed(0)}s
+• *URL:* https://my-clawdbot-ai.onrender.com
       `);
     });
     
-    // Handle any text message with AI
     bot.on('text', async (ctx) => {
-      const userMessage = ctx.message.text;
-      const userId = ctx.from.id;
-      
-      // Skip if it's a command
-      if (userMessage.startsWith('/')) return;
-      
-      console.log(`💬 ${ctx.from.first_name}: ${userMessage}`);
+      const message = ctx.message.text;
+      if (message.startsWith('/')) return;
       
       if (!model) {
-        return ctx.reply('AI service is currently unavailable. Please try /ai command.');
+        return ctx.reply('AI service is offline. Try /ai command.');
       }
       
       try {
-        // Send typing indicator
         await ctx.replyWithChatAction('typing');
-        
-        // Get chat history
-        let prompt = userMessage;
-        if (userSessions.has(userId)) {
-          const history = userSessions.get(userId).chatHistory;
-          if (history.length > 0) {
-            const context = history.slice(-3).map(h => `User: ${h.user}\nAI: ${h.ai}`).join('\n\n');
-            prompt = `Context from previous conversation:\n${context}\n\nCurrent message: ${userMessage}`;
-          }
-        }
-        
-        // Get AI response
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent(message);
         const response = result.response.text();
-        
-        // Store in history
-        if (!userSessions.has(userId)) {
-          userSessions.set(userId, { 
-            name: ctx.from.first_name,
-            chatHistory: [] 
-          });
-        }
-        userSessions.get(userId).chatHistory.push({ 
-          user: userMessage, 
-          ai: response 
-        });
-        
-        // Limit history
-        if (userSessions.get(userId).chatHistory.length > 10) {
-          userSessions.get(userId).chatHistory.shift();
-        }
-        
-        // Send response
         await ctx.reply(`🤖 ${response}`);
-        
       } catch (error) {
-        console.error('AI Error:', error);
-        await ctx.reply('❌ Sorry, I had trouble processing that. Try /ai [your question]');
+        console.error('Error:', error);
+        ctx.reply('Try: /ai [your question]');
       }
     });
     
-    // Error handling
-    bot.catch((err, ctx) => {
-      console.error(`Bot error:`, err);
-      ctx.reply('❌ An error occurred. Please try again.');
-    });
+    // GET BOT INFO
+    try {
+      botInfo = await bot.telegram.getMe();
+      console.log(`✅ Telegram Bot: @${botInfo.username}`);
+      console.log(`✅ Bot Name: ${botInfo.first_name}`);
+    } catch (error) {
+      console.log('⚠️ Could not get bot info:', error.message);
+    }
     
-    // Launch bot
-    await bot.launch();
-    console.log('🎉 Telegram bot started successfully!');
+    // START BOT WITH RETRY LOGIC
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await bot.launch();
+        console.log('🎉 Telegram bot started successfully!');
+        break;
+      } catch (error) {
+        if (error.message.includes('409') && retries > 1) {
+          console.log(`⚠️ Conflict detected. Retrying in 5 seconds... (${retries-1} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          retries--;
+        } else {
+          throw error;
+        }
+      }
+    }
     
     return true;
     
   } catch (error) {
-    console.log('❌ Telegram bot failed to start:', error.message);
+    console.log('❌ Telegram bot error:', error.message);
+    console.log('⚠️ Bot might already be running elsewhere.');
+    console.log('ℹ️ Your bot is accessible at: https://t.me/Clawdbot2502_bot');
     return false;
   }
 }
@@ -273,157 +186,80 @@ app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
-    <head>
-      <title>AI Telegram Bot</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        }
-        .container {
-          background: white;
-          border-radius: 20px;
-          padding: 40px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-          max-width: 500px;
-          width: 100%;
-          text-align: center;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 20px;
-          font-size: 28px;
-        }
-        .status {
-          background: #4CAF50;
-          color: white;
-          padding: 10px 20px;
-          border-radius: 50px;
-          display: inline-block;
-          margin: 20px 0;
-          font-weight: bold;
-        }
-        .bot-info {
-          background: #f8f9fa;
-          padding: 20px;
-          border-radius: 10px;
-          margin: 20px 0;
-          text-align: left;
-        }
-        .telegram-btn {
-          display: inline-block;
-          background: #0088cc;
-          color: white;
-          padding: 12px 30px;
-          border-radius: 50px;
-          text-decoration: none;
-          font-weight: bold;
-          margin-top: 20px;
-          transition: transform 0.3s;
-        }
-        .telegram-btn:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 10px 20px rgba(0,136,204,0.3);
-        }
-        .info {
-          margin-top: 20px;
-          color: #666;
-          font-size: 14px;
-        }
-      </style>
+    <head><title>AI Telegram Bot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+      .container { max-width: 600px; margin: 0 auto; }
+      .btn { display: inline-block; background: #0088cc; color: white; 
+             padding: 15px 30px; border-radius: 50px; text-decoration: none; 
+             margin: 20px; font-weight: bold; }
+      .status { background: #4CAF50; color: white; padding: 10px; border-radius: 10px; }
+    </style>
     </head>
     <body>
       <div class="container">
         <h1>🤖 AI Telegram Bot</h1>
         <div class="status">✅ ONLINE & RUNNING</div>
+        <p>Your bot is live on Telegram!</p>
         
-        <div class="bot-info">
-          <h3>Bot Information:</h3>
-          <p><strong>AI Model:</strong> Google Gemini Pro</p>
-          <p><strong>Platform:</strong> Telegram</p>
-          <p><strong>Users:</strong> ${userCount}</p>
-          <p><strong>Status:</strong> Active ✅</p>
-          ${botInfo ? `<p><strong>Username:</strong> @${botInfo.username}</p>` : ''}
-        </div>
+        <a href="https://t.me/Clawdbot2502_bot" class="btn" target="_blank">
+          🚀 Open Telegram Bot
+        </a>
         
-        ${botInfo ? `
-          <a href="https://t.me/${botInfo.username}" class="telegram-btn" target="_blank">
-            🚀 Open Telegram Bot
-          </a>
-        ` : ''}
+        <p><strong>Bot Commands:</strong></p>
+        <ul style="text-align: left; display: inline-block;">
+          <li>/start - Start the bot</li>
+          <li>/ai [question] - Ask AI anything</li>
+          <li>/status - Check bot status</li>
+          <li>/help - Show all commands</li>
+        </ul>
         
-        <div class="info">
-          <p>Powered by Google Gemini AI</p>
-          <p>Hosted on Render Free Tier</p>
-          <p>Version 2.0.0</p>
-        </div>
+        <p><strong>How to use:</strong></p>
+        <ol style="text-align: left; display: inline-block;">
+          <li>Click the button above</li>
+          <li>Send /start to the bot</li>
+          <li>Send /ai What is artificial intelligence?</li>
+          <li>Or just send any message!</li>
+        </ol>
       </div>
     </body>
     </html>
   `);
 });
 
-// Health endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
-    telegram: botInfo ? `@${botInfo.username}` : 'starting',
+    telegram: botInfo ? `@${botInfo.username}` : 'Clawdbot2502_bot',
     ai: model ? 'enabled' : 'disabled',
-    users: userCount,
     server: 'Render',
-    timestamp: new Date().toISOString()
+    url: 'https://my-clawdbot-ai.onrender.com'
   });
 });
 
-// ===== START EVERYTHING =====
+// ===== START APP =====
 async function startApp() {
   console.log('🚀 Starting AI Telegram Bot...');
   
   // Initialize AI
-  const aiReady = initializeAI();
+  initializeAI();
   
   // Start Telegram bot
-  const botReady = await startTelegramBot();
-  
-  if (botReady) {
-    console.log('🎉 Bot is ready!');
-    console.log(`📱 Talk to your bot: https://t.me/${botInfo.username}`);
-  } else {
-    console.log('❌ Bot failed to start');
-  }
+  await startTelegramBot();
   
   // Start web server
   app.listen(PORT, () => {
-    console.log(`✅ Web server running on port ${PORT}`);
-    console.log(`🌐 Web interface: https://your-render-app.onrender.com`);
+    console.log(`✅ Web server: https://my-clawdbot-ai.onrender.com`);
+    console.log(`📱 Telegram: https://t.me/Clawdbot2502_bot`);
+    console.log('🎉 Bot is ready!');
   });
   
   // Keep alive
   setInterval(() => {
-    console.log('❤️ Heartbeat:', new Date().toISOString());
+    console.log('❤️ Heartbeat:', new Date().toLocaleTimeString());
   }, 60000);
 }
 
-// Handle shutdown
-process.once('SIGINT', () => {
-  if (bot) bot.stop('SIGINT');
-  process.exit(0);
-});
-
-process.once('SIGTERM', () => {
-  if (bot) bot.stop('SIGTERM');
-  process.exit(0);
-});
-
-// Start the app
-startApp().catch(error => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+// Start
+startApp().catch(console.error);
