@@ -1,126 +1,94 @@
 const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { Telegraf } = require('telegraf'); // Telegraf upar hi import kar liya safe side ke liye
+const { Telegraf } = require('telegraf');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ===== 1. WEB SERVER (Keep Alive) =====
+// ===== 1. WEB SERVER =====
 app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
-  console.log(`🌐 Web URL: https://my-clawdbot-ai.onrender.com`);
 });
 
-app.get('/', (req, res) => {
-  res.send('Bot is Alive! 🤖 (Telegram & AI Running)');
-});
+app.get('/', (req, res) => res.send('Bot is Alive! 🤖'));
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'online', timestamp: new Date().toISOString() });
-});
+// ===== 2. SMART AI GENERATOR FUNCTION =====
+// Ye function automatic model badal lega agar error aaya toh
+async function generateSmartResponse(apiKey, prompt) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  // List of models to try (Priority wise)
+  // Sabse pehle '-001' wala specific version try karenge
+  const modelsToTry = ["gemini-1.5-flash-001", "gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"];
+  
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`🔄 Trying AI Model: ${modelName}...`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const response = result.response.text();
+      
+      console.log(`✅ Success with model: ${modelName}`);
+      return response; // Agar chal gaya toh yahi se return ho jao
+      
+    } catch (error) {
+      console.log(`⚠️ Failed with ${modelName}: ${error.message}`);
+      // Agar error aaya toh loop continue karega aur agla model try karega
+    }
+  }
+  
+  throw new Error("All models failed. Please check API Key.");
+}
 
-// ===== 2. TELEGRAM BOT SETUP =====
+// ===== 3. TELEGRAM BOT =====
 async function startTelegramBot() {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    
-    if (!token) {
-      console.log('⚠️ Error: TELEGRAM_BOT_TOKEN missing inside Environment Variables.');
+    const apiKey = process.env.GOOGLE_API_KEY;
+
+    if (!token || !apiKey) {
+      console.log('⚠️ Error: TELEGRAM_BOT_TOKEN or GOOGLE_API_KEY missing.');
       return;
     }
-    
-    console.log('🤖 Initializing Telegram Bot...');
+
     const bot = new Telegraf(token);
-    
-    // ===== 3. AI SETUP (With Auto-Fix Logic) =====
-    let aiModel = null;
-    
-    if (process.env.GOOGLE_API_KEY) {
-      try {
-        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-        
-        // TRY 1: New Fast Model (Flash)
-        // Hum hardcode kar rahe hain taaki Env variable ki galti na ho
-        const primaryModel = "gemini-1.5-flash"; 
-        console.log(`🔌 Connecting to Primary Model: ${primaryModel}...`);
-        
-        aiModel = genAI.getGenerativeModel({ model: primaryModel });
-        console.log('✅ Google AI Connected (Flash Model)');
-        
-      } catch (error) {
-        console.log('⚠️ Primary Model Failed, trying Backup...');
-      }
-    } else {
-      console.log('⚠️ GOOGLE_API_KEY nahi mili!');
-    }
+    console.log('🤖 Telegram Bot Initialized.');
 
-    // ===== COMMANDS =====
     bot.command('start', (ctx) => {
-      ctx.replyWithMarkdown(`
-👋 *Hello! I am ClawdBot.*
-
-I am powered by Google Gemini AI.
-Ask me anything using the /ai command.
-
-*Example:*
-\`/ai What is the capital of India?\`
-      `);
+      ctx.reply('Namaste! /ai likh kar kuch bhi pucho. Main jawab dunga.');
     });
-    
+
     bot.command('ai', async (ctx) => {
-      const question = ctx.message.text.replace('/ai', '').trim();
+      const text = ctx.message.text.replace('/ai', '').trim();
       
-      if (!question) {
-        return ctx.reply('Kuch sawal toh pucho! (Eg: /ai Tell me a joke)');
-      }
-      
-      // Check if AI is ready
-      if (!process.env.GOOGLE_API_KEY) {
-        return ctx.reply('❌ API Key missing inside Render Settings.');
-      }
+      if (!text) return ctx.reply('Sawla pucho bhai. Example: /ai Joke sunao');
 
       try {
         await ctx.replyWithChatAction('typing');
-
-        // Logic: Agar AI Model set hai toh use karo, warna On-the-fly initialize karo
-        // Ye "Backup Logic" hai agar upar wala fail hua ho
-        if (!aiModel) {
-            const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-            // Fallback to 'gemini-pro' because it never fails on old keys
-            aiModel = genAI.getGenerativeModel({ model: "gemini-pro" }); 
-        }
-
-        const result = await aiModel.generateContent(question);
-        const response = result.response.text();
         
-        // Telegram par bhejo
-        await ctx.reply(response, { parse_mode: 'Markdown' });
-
-      } catch (error) {
-        console.error('AI Error:', error.message);
+        // Hum purana tareeka nahi use karenge.
+        // Hum naya "Smart Function" call karenge jo khud model dhundega.
+        const response = await generateSmartResponse(apiKey, text);
         
-        if (error.message.includes('404')) {
-           // Agar abhi bhi 404 aa raha hai, iska matlab API Key hi galat hai
-           ctx.reply('❌ Error 404: Google API Key valid nahi hai ya Model access nahi hai. Please new API Key generate karein.');
-        } else {
-           ctx.reply('❌ Error: Main abhi jawab nahi de pa raha hu. Thodi der baad try karein.');
-        }
+        await ctx.reply(response);
+        
+      } catch (err) {
+        console.error('Final Error:', err.message);
+        ctx.reply('❌ Error: Google API Key issue or Quota exceeded.');
       }
     });
-    
-    // Launch Bot
-    bot.launch();
+
+    await bot.launch();
     console.log('🚀 Telegram Bot Started Successfully!');
-    
+
     // Graceful Stop
     process.once('SIGINT', () => bot.stop('SIGINT'));
     process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
-  } catch (error) {
-    console.log('❌ Bot Crash Error:', error.message);
+  } catch (err) {
+    console.error('Startup Error:', err);
   }
 }
 
-// ===== STARTUP SEQUENCE =====
-console.log('⏳ Starting Bot System...');
-setTimeout(startTelegramBot, 3000); // 3 second wait taaki port bind ho jaye
+// ===== STARTUP =====
+setTimeout(startTelegramBot, 3000);
