@@ -5,87 +5,87 @@ const { Telegraf } = require('telegraf');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ===== 1. WEB SERVER =====
+// ===== WEB SERVER =====
 app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
 });
+app.get('/', (req, res) => res.send('Debugger Mode On 🕵️‍♂️'));
 
-app.get('/', (req, res) => res.send('Bot is Alive & Kicking! 🤖'));
+// ===== JASOOSI (DEBUGGING) STARTS HERE =====
+async function debugSystem() {
+  console.log("------------------------------------------------");
+  console.log("🕵️‍♂️ SYSTEM DIAGNOSTIC STARTED");
+  
+  // 1. CHECK API KEY
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) {
+    console.log("❌ ERROR: API Key bilkul gayab hai! Environment Variables check karo.");
+  } else {
+    // Hum key ke shuru ke 5 akshar print karenge check karne ke liye
+    // Darro mat, puri key logs me nahi aayegi, bas shuruwat ke 4-5 letters.
+    console.log(`✅ API Key Detected! Starts with: ${key.substring(0, 5)}...`);
+    console.log(`📏 Key Length: ${key.length} characters`);
+  }
 
-// ===== 2. SMART AI ENGINE =====
-async function generateSmartResponse(apiKey, prompt) {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  
-  // Hum ab NAYE aur PURANE dono models try karenge
-  // "gemini-2.0-flash-exp" sabse naya hai, shayad wo chal jaye
-  const modelsToTry = [
-    "gemini-2.0-flash-exp",     // Newest Experimental
-    "gemini-1.5-flash",         // Standard Fast
-    "gemini-1.5-flash-latest",  // Latest Alias
-    "gemini-pro",               // Old Reliable
-    "gemini-1.0-pro"            // Legacy
-  ];
-  
-  for (const modelName of modelsToTry) {
-    try {
-      console.log(`🔄 Trying AI Model: ${modelName}...`);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      const response = result.response.text();
-      
-      console.log(`✅ SUCCESS! Connected to: ${modelName}`);
-      return response; 
-      
-    } catch (error) {
-      console.log(`⚠️ Failed (${modelName}): 404 Not Found or Error.`);
-    }
+  // 2. CHECK AI MODEL (DIRECT TEST)
+  console.log("🧪 Testing AI Connection directly (No Telegram)...");
+  try {
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Pro is safest
+    
+    console.log("⏳ Sending test message to Google...");
+    const result = await model.generateContent("Hello, are you working?");
+    const response = result.response.text();
+    
+    console.log("🎉 AI TEST PASSED! Response received:");
+    console.log(`>> "${response}"`);
+    console.log("✅ Matlab API Key aur Google Connection 100% OK hai.");
+    
+  } catch (error) {
+    console.log("❌ AI TEST FAILED!");
+    console.log("Error Message:", error.message);
+    if (error.message.includes("404")) console.log("👉 Matlab Model Name galat hai ya Key par access nahi hai.");
+    if (error.message.includes("403") || error.message.includes("key")) console.log("👉 Matlab API Key GALAT hai.");
   }
   
-  throw new Error("API Key Invalid or No Models Available.");
+  // 3. START TELEGRAM
+  startTelegram();
 }
 
-// ===== 3. TELEGRAM BOT =====
-async function startTelegramBot() {
+async function startTelegram() {
+  console.log("------------------------------------------------");
+  console.log("🤖 Starting Telegram Bot...");
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  
+  if (!token) { 
+    console.log("❌ Telegram Token Missing!"); 
+    return;
+  }
+
   try {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const apiKey = process.env.GOOGLE_API_KEY;
-
-    if (!token || !apiKey) {
-      console.log('⚠️ Critical Error: Token or API Key is missing!');
-      return;
-    }
-
     const bot = new Telegraf(token);
-    console.log('🤖 Telegram Bot Initialized.');
-
-    bot.command('start', (ctx) => {
-      ctx.reply('Namaste! Main online hu. /ai likh kar kuch bhi pucho.');
-    });
-
+    
+    // Simple Command
+    bot.command('start', (ctx) => ctx.reply('Debugger Bot is Online! ✅'));
+    
     bot.command('ai', async (ctx) => {
-      const text = ctx.message.text.replace('/ai', '').trim();
-      if (!text) return ctx.reply('Sawla pucho! Ex: /ai Hello');
-
-      try {
-        await ctx.replyWithChatAction('typing');
-        const response = await generateSmartResponse(apiKey, text);
-        await ctx.reply(response);
-      } catch (err) {
-        console.error('Final Failure:', err.message);
-        ctx.reply('❌ Error: API Key galat hai ya naya Project banana padega Google AI Studio par.');
-      }
+        try {
+            const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const result = await model.generateContent(ctx.message.text.replace('/ai', ''));
+            ctx.reply(result.response.text());
+        } catch(e) {
+            ctx.reply(`Error: ${e.message}`);
+        }
     });
 
     await bot.launch();
-    console.log('🚀 Telegram Bot Started!');
-
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
-  } catch (err) {
-    console.log('Bot Crash:', err);
+    console.log("✅ Telegram Bot Started Successfully!");
+  } catch (e) {
+    console.log("❌ Telegram Bot Crash:", e.message);
+    if (e.message.includes("409")) console.log("👉 DO BOT CHAL RAHE HAIN! Purana wala band karo.");
   }
 }
 
-// ===== STARTUP =====
-setTimeout(startTelegramBot, 3000);
+// Start Debugging immediately
+setTimeout(debugSystem, 2000);
