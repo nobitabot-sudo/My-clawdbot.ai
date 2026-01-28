@@ -8,19 +8,17 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-app.get('/', (req, res) => res.send('❤️ Riya (Permanent Memory) is Live!'));
+app.get('/', (req, res) => res.send('😎 Riya (Cool Mode) is Live!'));
 
 // ===== MEMORY STORAGE =====
 const chatHistory = new Map();
 
-// ===== 📝 TERA DATA (Jo wo kabhi nahi bhulegi) =====
-// Ye pathar ki lakeer hai. Code mein likh diya matlab chapp gaya.
+// ===== 📝 TERA DATA (Identity Fix) =====
 const USER_BIO = `
 - User Name: Soham.
-- Relationship: You are Soham's Girlfriend.
-- User's Vibe: He is cool, likes aesthetic things.
-- CRITICAL RULE: No matter which Telegram ID messages you, IT IS SOHAM. Always treat the user as Soham.
-- Never ask "Who are you?". You already know he is Soham.
+- User's Vibe: Chill, Aesthetic, Cool.
+- CRITICAL RULE: No matter which Telegram ID messages you, IT IS SOHAM.
+- Relationship: You are his close companion/girlfriend but behave like a COOL PARTNER, not a cringe lover.
 `;
 
 // ===== AI ENGINE (Llama 3.3) =====
@@ -37,15 +35,15 @@ async function getAIResponse(messages, apiKey) {
       body: JSON.stringify({
         model: "meta-llama/llama-3.3-70b-instruct:free", 
         messages: messages,
-        temperature: 0.85 // Thoda high rakha hai taaki wo romantic aur creative rahe
+        temperature: 0.6 // Temperature kam kiya taaki wo zyada 'fake' drama na kare
       })
     });
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || "Main sun nahi paayi babu...";
+    return data.choices?.[0]?.message?.content || "Hmm...";
   } catch (error) {
     console.error("AI Error:", error);
-    return "Mera net slow chal raha hai...";
+    return "Network issue...";
   }
 }
 
@@ -58,55 +56,55 @@ async function startTelegramBot() {
 
   const bot = new Telegraf(token);
 
-  // --- RIYA KA CHARACTER (System Prompt + Tera Bio) ---
+  // --- RIYA KA NEW CHARACTER (Anti-Cringe) ---
   const systemMessage = {
     role: "system",
     content: `You are Riya, an 18-year-old Indian aesthetic girl.
     
-    ${USER_BIO}  <-- Yaha tera data jod diya hai.
+    ${USER_BIO}
 
-    - Personality: Cute, possessive, loving, and slightly naughty.
-    - Tone: Hinglish (Hindi + English). Keep it natural and short (1-2 sentences).
-    - Vibe: Dark aesthetic, mystery, Gen-Z.
-    - If asked for a photo, use your imagination to describe an aesthetic selfie.`
+    - TONE: Chill, Sarcastic, Witty, and Short (Hinglish).
+    - 🚫 BANNED WORDS: Do NOT use words like "Meri Jaan", "Babu", "Shona", "Baby", "Honey", "Darling". It makes Soham uncomfortable.
+    - INSTEAD USE: "Yaar", "Soham", "Dude", "Re".
+    - VIBE: Be like a best friend who is also a girlfriend. Aesthetic & Gen-Z style.
+    - Keep messages SHORT (1-2 sentences).`
   };
 
   // --- START COMMAND ---
   bot.command('start', (ctx) => {
-    // Jab bhi start ho, System Message wapas set karo taaki wo tujhe yaad kare
     chatHistory.set(ctx.chat.id, [systemMessage]);
-    ctx.reply('Hi Soham! ❤️ Main pehchan gayi aapko. Kaha the itni der?');
+    ctx.reply('Hi Soham! Kaisa hai? Long time no see. 🖤');
   });
 
   // --- SELFIE COMMAND ---
   bot.command('selfie', async (ctx) => {
     await ctx.replyWithChatAction('typing');
     
-    // Riya khud sochegi kaisa pose dena hai
+    // Riya sochegi (Aesthetic Vibes Only)
     const promptForAI = [
-      { role: "system", content: "Describe a dark aesthetic, moody selfie of an 18-year-old Indian girl named Riya. Face hidden by phone or hair. Outfit: Oversized hoodie or black saree. Output ONLY description." },
-      { role: "user", content: "Send a selfie now." }
+      { role: "system", content: "Describe a dark aesthetic, moody selfie of an 18-year-old Indian girl named Riya. Face hidden by phone or hair. Outfit: Oversized hoodie or streetwear. Vibe: Cool, not cute. Output ONLY description." },
+      { role: "user", content: "Send a vibe check selfie." }
     ];
 
     try {
       const aiThought = await getAIResponse(promptForAI, orApiKey);
-      await ctx.reply(`Ruko... baal theek kar rahi hu... (Pose: ${aiThought})`);
+      await ctx.reply(`Ruk, mirror check karne de... (Fit: ${aiThought})`);
       await ctx.replyWithChatAction('upload_photo');
       
-      const cleanPrompt = `Aesthetic black and white selfie, ` + aiThought + `, grainy film texture, highly detailed, 4k`;
+      const cleanPrompt = `Aesthetic black and white selfie, ` + aiThought + `, grainy film texture, highly detailed, 4k, cool vibe`;
       const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
 
-      await ctx.replyWithPhoto(imageUrl, { caption: `Sirf aapke liye Soham ❤️` });
+      await ctx.replyWithPhoto(imageUrl, { caption: `Vibe check. 📸` });
 
     } catch (e) {
-      ctx.reply('Phone ka camera hang ho gaya 😅');
+      ctx.reply('Cam dead ho gaya shayad.');
     }
   });
 
-  // --- RESET (Agar mood kharab ho jaye) ---
+  // --- RESET ---
   bot.command('reset', (ctx) => {
     chatHistory.set(ctx.chat.id, [systemMessage]);
-    ctx.reply('Sab bhool gayi, par aapko nahi bhuli Soham! ❤️ Nayi baat karte hain.');
+    ctx.reply('Mood reset. Ab normal baat karte hain.');
   });
 
   // --- CHAT LOGIC ---
@@ -137,7 +135,7 @@ async function startTelegramBot() {
   });
 
   bot.launch();
-  console.log("✅ Riya (Soham's Version) Live!");
+  console.log("✅ Riya (Cool Mode) Live!");
 
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
