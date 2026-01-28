@@ -67,9 +67,6 @@ app.get('/', (req, res) => {
           transform: translateY(-3px);
           box-shadow: 0 10px 20px rgba(0,136,204,0.3);
         }
-        .btn-whatsapp {
-          background: #25D366;
-        }
         .steps {
           text-align: left;
           background: #f8f9fa;
@@ -98,17 +95,8 @@ app.get('/', (req, res) => {
           <h3>How to use:</h3>
           <div class="step">1. Click the button above</div>
           <div class="step">2. Send <code>/start</code> to the bot</div>
-          <div class="step">3. Send <code>/ai Hello, who are you?</code></div>
-          <div class="step">4. Or send any message!</div>
+          <div class="step">3. Send <code>/ai Hello</code></div>
         </div>
-        
-        <p><strong>Features:</strong></p>
-        <ul style="text-align: left; display: inline-block;">
-          <li>Google Gemini AI powered</li>
-          <li>24/7 availability</li>
-          <li>Free to use</li>
-          <li>Coming soon: WhatsApp</li>
-        </ul>
       </div>
     </body>
     </html>
@@ -118,7 +106,7 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
-    telegram: '@Clawdbot2502_bot',
+    telegram: 'active',
     server: 'Render',
     timestamp: new Date().toISOString()
   });
@@ -138,15 +126,31 @@ async function startTelegramBot() {
     console.log('🤖 Starting Telegram bot...');
     const bot = new Telegraf(token);
     
-    // Initialize AI
+    // Initialize AI (FIXED SECTION)
     let aiModel = null;
     if (process.env.GOOGLE_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-        aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        console.log('✅ Google AI initialized');
+        
+        // FIX: Using specific model version 'gemini-1.5-flash-001'
+        // Also checks environment variable first
+        const modelName = process.env.LLM_MODEL || "gemini-1.5-flash-001";
+        console.log(`🔌 Connecting to AI Model: ${modelName}...`);
+        
+        aiModel = genAI.getGenerativeModel({ model: modelName });
+        console.log('✅ Google AI initialized successfully');
+        
       } catch (aiError) {
-        console.log('❌ AI init error:', aiError.message);
+        console.log('❌ AI Init Error:', aiError.message);
+        // Fallback attempt if flash fails
+        try {
+          console.log('⚠️ Attempting fallback to gemini-pro...');
+          const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+          aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+          console.log('✅ Fallback AI Model initialized');
+        } catch (fbError) {
+          console.log('❌ Fallback failed too.');
+        }
       }
     }
     
@@ -174,17 +178,21 @@ I'm your AI assistant powered by Google Gemini.
       }
       
       if (!aiModel) {
-        return ctx.reply('AI service is currently unavailable.');
+        return ctx.reply('AI service is currently unavailable. Check logs.');
       }
       
       try {
         await ctx.replyWithChatAction('typing');
         const result = await aiModel.generateContent(question);
         const response = result.response.text();
-        await ctx.reply(`🤖 *AI Response:*\n\n${response}`, { parse_mode: 'Markdown' });
+        await ctx.reply(response, { parse_mode: 'Markdown' });
       } catch (error) {
-        console.error('AI Error:', error.message);
-        ctx.reply('❌ Error. Please try again.');
+        console.error('AI Gen Error:', error.message);
+        if (error.message.includes('404')) {
+           ctx.reply('❌ AI Model Error (404). Please restart the bot or check API Key.');
+        } else {
+           ctx.reply('❌ AI Error. Please try again.');
+        }
       }
     });
     
@@ -195,9 +203,6 @@ I'm your AI assistant powered by Google Gemini.
 /start - Start the bot
 /ai [question] - Ask AI anything
 /status - Check bot status
-/help - Show this message
-
-*Example:* /ai What is artificial intelligence?
       `);
     });
     
@@ -206,10 +211,9 @@ I'm your AI assistant powered by Google Gemini.
 *📊 Bot Status:*
 
 • Status: ✅ Online
-• AI: ${aiModel ? 'Google Gemini ✅' : 'Disabled ❌'}
+• AI: ${aiModel ? 'Active ✅' : 'Disabled ❌'}
 • Server: Render
 • Uptime: ${process.uptime().toFixed(0)} seconds
-• URL: https://my-clawdbot-ai.onrender.com
       `);
     });
     
@@ -225,10 +229,10 @@ I'm your AI assistant powered by Google Gemini.
         await ctx.replyWithChatAction('typing');
         const result = await aiModel.generateContent(message);
         const response = result.response.text();
-        await ctx.reply(`🤖 ${response}`);
+        await ctx.reply(response);
       } catch (error) {
         console.error('Error:', error.message);
-        ctx.reply('Try: /ai [your question]');
+        ctx.reply('Sorry, I faced an error processing that.');
       }
     });
     
@@ -239,21 +243,15 @@ I'm your AI assistant powered by Google Gemini.
         return;
       }
       console.error('Bot error:', err);
-      if (ctx) ctx.reply('❌ An error occurred.');
     });
     
     // Launch bot
     await bot.launch();
     console.log('🎉 Telegram bot started successfully!');
     
-    // Get bot info
-    const botInfo = await bot.telegram.getMe();
-    console.log(`📱 Telegram Bot: @${botInfo.username}`);
-    
   } catch (error) {
     if (error.message.includes('409')) {
       console.log('⚠️ Bot is already running elsewhere');
-      console.log('📱 Your bot: https://t.me/Clawdbot2502_bot');
     } else {
       console.log('❌ Telegram bot error:', error.message);
     }
@@ -263,14 +261,13 @@ I'm your AI assistant powered by Google Gemini.
 // ===== MAIN STARTUP =====
 console.log('🚀 Starting ClawdBot AI...');
 
-// Start Telegram bot after a delay
+// Start Telegram bot after a delay to ensure port is bound
 setTimeout(() => {
   startTelegramBot().catch(console.error);
 }, 3000);
 
 console.log('✅ Web server started');
 console.log('⏳ Telegram bot starting in 3 seconds...');
-console.log('📱 Bot URL: https://t.me/Clawdbot2502_bot');
 
 // Keep alive
 setInterval(() => {
