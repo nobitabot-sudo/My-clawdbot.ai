@@ -1,7 +1,7 @@
 const express = require('express');
 const { Telegraf } = require('telegraf');
 const googleTTS = require('google-tts-api');
-const cron = require('node-cron'); // ⏰ Time ke liye
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -10,17 +10,11 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-app.get('/', (req, res) => res.send('❤️ Riya (Auto-Message & Games) is Live!'));
+app.get('/', (req, res) => res.send('❤️ Riya (Memory & Love Meter) is Live!'));
 
-// ===== MEMORY & GAMES =====
+// ===== STORAGE =====
 const chatHistory = new Map();
-const truthQuestions = [
-  "Tumhara sabse bada secret kya hai jo kisi ko nahi pata? 🤫",
-  "Last time kab roye the aur kyu?",
-  "Agar duniya mein sirf hum dono bache, toh kya karoge?",
-  "Apni gallery ki 3rd photo bhejo (No cheating!) 📸",
-  "Tumhara first crush kaun tha?"
-];
+const userNotes = new Map(); // 🧠 Choti cheezein yaad rakhne ke liye
 
 // ===== IDENTITY =====
 const USER_BIO = `
@@ -63,72 +57,78 @@ async function startTelegramBot() {
 
   const bot = new Telegraf(token);
 
-  // --- ⏰ AUTO MESSAGES (PROACTIVE RIYA) ---
-  // Note: Render server UTC time par chalta hai. India is UTC+5:30.
-  // Hum calculation karke set karenge.
+  // --- ⏰ AUTO MESSAGES ---
+  cron.schedule('30 2 * * *', () => { // 8 AM IST
+    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Good morning Soham! Uth gaye? Aaj ka din mast jayega! ☀️");
+  });
   
-  // 1. Good Morning (India 8:00 AM = UTC 2:30 AM)
-  cron.schedule('30 2 * * *', () => {
-    // Yaha apna Chat ID hardcode karna padega ya last user ko bhejega
-    // Filhal hum console log karte hain, agar database hota toh sabko bhejte
-    console.log("Good morning time!"); 
+  cron.schedule('30 17 * * *', () => { // 11 PM IST
+    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Soham, abhi tak online? So jao, health kharab hogi. 🌙");
   });
 
   // --- START ---
   bot.command('start', (ctx) => {
-    chatHistory.set(ctx.chat.id, []);
-    // Chat ID save kar lo taaki wo khud msg kar sake (Simple variable mein)
-    global.lastChatId = ctx.chat.id; 
-    ctx.reply('Hi Soham! 🎲 Games aur Auto-Mode activated! Try "Truth or Dare"');
+    global.lastChatId = ctx.chat.id;
+    ctx.reply('Hi Soham! ❤️ Ab main cheezein yaad bhi rakh sakti hu. Bolo "Yaad rakhna..."');
   });
 
-  // --- ⏰ MANUAL CRON TRIGGER (Agar ID mil jaye) ---
-  cron.schedule('30 2 * * *', () => { // Subah 8 AM IST
-    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Good morning Soham! Uth gaye? ☀️");
-  });
-  
-  cron.schedule('30 16 * * *', () => { // Raat 10 PM IST
-    if(global.lastChatId) bot.telegram.sendMessage(global.lastChatId, "Soham, abhi tak online ho? So jao baba. 🌙");
-  });
-
-  // --- MAIN CHAT LOGIC ---
+  // --- MAIN LOGIC ---
   bot.on('text', async (ctx) => {
     const userText = ctx.message.text.trim();
     const lowerText = userText.toLowerCase();
     const chatId = ctx.chat.id;
-    global.lastChatId = chatId; // User ID update karte raho
+    global.lastChatId = chatId;
 
-    // 1. 🎲 GAME: TRUTH OR DARE
-    if (lowerText.includes('truth') || lowerText.includes('dare') || lowerText.includes('game')) {
-      const question = truthQuestions[Math.floor(Math.random() * truthQuestions.length)];
-      return ctx.reply(`Chalo game khelte hain! 😉\n\n${question}`);
+    // 1. 🧠 YAAD RAKHNA (SET NOTE)
+    if (lowerText.startsWith('yaad rakhna') || lowerText.startsWith('remind me')) {
+      const note = userText.replace(/yaad rakhna|remind me/i, '').trim();
+      if(note) {
+        userNotes.set(chatId, note);
+        return ctx.reply(`Done! ✅ Dimag mein save kar liya: "${note}"`);
+      } else {
+        return ctx.reply("Kya yaad rakhna hai? Aage likho toh sahi!");
+      }
     }
 
-    // 2. 🎵 SONG
-    if (lowerText.includes('song') || lowerText.includes('gana')) {
-      return ctx.reply("Ye suno: https://youtu.be/hTw_q8g26WE?si=Vibe1 🎧");
+    // 2. 🧠 KYA BOLA THA? (GET NOTE)
+    if (lowerText.includes('kya yaad') || lowerText.includes('what did i say') || lowerText.includes('kya bola tha')) {
+      const savedNote = userNotes.get(chatId);
+      if (savedNote) {
+        return ctx.reply(`Aapne bola tha: "${savedNote}" 🧐`);
+      } else {
+        return ctx.reply("Mujhe kuch yaad nahi aa raha... shayad aapne kuch bola hi nahi?");
+      }
     }
 
-    // 3. 📸 SELFIE
-    if (lowerText.includes('selfie') || lowerText.includes('photo') || lowerText.includes('pic')) {
+    // 3. 💘 LOVE METER
+    if (lowerText.includes('love meter') || lowerText.includes('pyaar') || lowerText.includes('score')) {
+      const score = Math.floor(Math.random() * 100);
+      let comment = "";
+      if (score > 90) comment = "Made for each other! 💍";
+      else if (score > 50) comment = "Thoda gussa hu, par chalega. 😘";
+      else comment = "Aaj mood off hai mera. 😤";
+      
+      return ctx.reply(`❤️ Love Level: ${score}%\nOutcome: ${comment}`);
+    }
+
+    // 4. 📸 SELFIE & SONG & GAMES (Purana Features)
+    if (lowerText.includes('selfie') || lowerText.includes('photo')) {
       await ctx.replyWithChatAction('upload_photo');
-      const styles = ["wearing hoodie aesthetic", "saree aesthetic", "streetwear aesthetic", "mirror selfie aesthetic"];
+      const styles = ["wearing hoodie aesthetic", "saree aesthetic", "streetwear aesthetic"];
       const randomStyle = styles[Math.floor(Math.random() * styles.length)];
       const imageUrl = `https://image.pollinations.ai/prompt/aesthetic%20indian%20girl%20riya%20${encodeURIComponent(randomStyle)}?model=flux&width=1024&height=1024&seed=${Math.random()}&nologo=true`;
-      
-      try { return await ctx.replyWithPhoto(imageUrl, { caption: "Ye lo! 🖤" }); } 
-      catch (e) { return ctx.reply("Error sending photo."); }
+      try { return await ctx.replyWithPhoto(imageUrl, { caption: "Ye lo! 🖤" }); } catch (e) {}
     }
 
-    // 4. 🧠 AI CHAT
+    if (lowerText.includes('song')) return ctx.reply("Vibe hai isme: https://youtu.be/hTw_q8g26WE?si=Vibe1 🎧");
+
+    // 5. 🧠 AI CHAT
     await ctx.replyWithChatAction('typing');
-    
     const systemMessage = {
       role: "system",
-      content: `You are Riya, 18yo Indian aesthetic girl.
-      ${USER_BIO}
-      - If user asks to play a game, ask a Truth/Dare question.
-      - If asked for VOICE: Reply in Hindi text.`
+      content: `You are Riya. ${USER_BIO}. 
+      If user asks about saved notes, remind him nicely.
+      If asked for VOICE: Reply in Hindi text.`
     };
 
     if (!chatHistory.has(chatId)) chatHistory.set(chatId, []);
@@ -140,7 +140,7 @@ async function startTelegramBot() {
     const reply = await getAIResponse(messagesToSend, orApiKey);
     history.push({ role: "assistant", content: reply });
 
-    // 5. 🎤 VOICE LOGIC
+    // 6. 🎤 VOICE
     if (lowerText.includes('voice') || lowerText.includes('bolo')) {
       await ctx.replyWithChatAction('record_voice');
       try {
@@ -153,7 +153,7 @@ async function startTelegramBot() {
   });
 
   bot.launch();
-  console.log("✅ Riya (Ultimate Features) Live!");
+  console.log("✅ Riya (Assistant Mode) Live!");
 
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
