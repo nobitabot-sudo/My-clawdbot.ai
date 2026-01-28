@@ -10,16 +10,21 @@ app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
 });
 
-app.get('/', (req, res) => res.send('Bot is Alive! 🤖'));
+app.get('/', (req, res) => res.send('Bot is Alive & Kicking! 🤖'));
 
-// ===== 2. SMART AI GENERATOR FUNCTION =====
-// Ye function automatic model badal lega agar error aaya toh
+// ===== 2. SMART AI ENGINE =====
 async function generateSmartResponse(apiKey, prompt) {
   const genAI = new GoogleGenerativeAI(apiKey);
   
-  // List of models to try (Priority wise)
-  // Sabse pehle '-001' wala specific version try karenge
-  const modelsToTry = ["gemini-1.5-flash-001", "gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"];
+  // Hum ab NAYE aur PURANE dono models try karenge
+  // "gemini-2.0-flash-exp" sabse naya hai, shayad wo chal jaye
+  const modelsToTry = [
+    "gemini-2.0-flash-exp",     // Newest Experimental
+    "gemini-1.5-flash",         // Standard Fast
+    "gemini-1.5-flash-latest",  // Latest Alias
+    "gemini-pro",               // Old Reliable
+    "gemini-1.0-pro"            // Legacy
+  ];
   
   for (const modelName of modelsToTry) {
     try {
@@ -28,16 +33,15 @@ async function generateSmartResponse(apiKey, prompt) {
       const result = await model.generateContent(prompt);
       const response = result.response.text();
       
-      console.log(`✅ Success with model: ${modelName}`);
-      return response; // Agar chal gaya toh yahi se return ho jao
+      console.log(`✅ SUCCESS! Connected to: ${modelName}`);
+      return response; 
       
     } catch (error) {
-      console.log(`⚠️ Failed with ${modelName}: ${error.message}`);
-      // Agar error aaya toh loop continue karega aur agla model try karega
+      console.log(`⚠️ Failed (${modelName}): 404 Not Found or Error.`);
     }
   }
   
-  throw new Error("All models failed. Please check API Key.");
+  throw new Error("API Key Invalid or No Models Available.");
 }
 
 // ===== 3. TELEGRAM BOT =====
@@ -47,7 +51,7 @@ async function startTelegramBot() {
     const apiKey = process.env.GOOGLE_API_KEY;
 
     if (!token || !apiKey) {
-      console.log('⚠️ Error: TELEGRAM_BOT_TOKEN or GOOGLE_API_KEY missing.');
+      console.log('⚠️ Critical Error: Token or API Key is missing!');
       return;
     }
 
@@ -55,38 +59,31 @@ async function startTelegramBot() {
     console.log('🤖 Telegram Bot Initialized.');
 
     bot.command('start', (ctx) => {
-      ctx.reply('Namaste! /ai likh kar kuch bhi pucho. Main jawab dunga.');
+      ctx.reply('Namaste! Main online hu. /ai likh kar kuch bhi pucho.');
     });
 
     bot.command('ai', async (ctx) => {
       const text = ctx.message.text.replace('/ai', '').trim();
-      
-      if (!text) return ctx.reply('Sawla pucho bhai. Example: /ai Joke sunao');
+      if (!text) return ctx.reply('Sawla pucho! Ex: /ai Hello');
 
       try {
         await ctx.replyWithChatAction('typing');
-        
-        // Hum purana tareeka nahi use karenge.
-        // Hum naya "Smart Function" call karenge jo khud model dhundega.
         const response = await generateSmartResponse(apiKey, text);
-        
         await ctx.reply(response);
-        
       } catch (err) {
-        console.error('Final Error:', err.message);
-        ctx.reply('❌ Error: Google API Key issue or Quota exceeded.');
+        console.error('Final Failure:', err.message);
+        ctx.reply('❌ Error: API Key galat hai ya naya Project banana padega Google AI Studio par.');
       }
     });
 
     await bot.launch();
-    console.log('🚀 Telegram Bot Started Successfully!');
+    console.log('🚀 Telegram Bot Started!');
 
-    // Graceful Stop
     process.once('SIGINT', () => bot.stop('SIGINT'));
     process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
   } catch (err) {
-    console.error('Startup Error:', err);
+    console.log('Bot Crash:', err);
   }
 }
 
